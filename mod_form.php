@@ -89,77 +89,16 @@ class mod_game_mod_form extends moodleform_mod {
             $this->add_intro_editor(true);
         }
 
-        $hasglossary = ($gamekind == 'hangman' || $gamekind == 'cross' ||
-                $gamekind == 'cryptex' || $gamekind == 'sudoku' ||
-                $gamekind == 'hiddenpicture' || $gamekind == 'snakes');
+        $mform->addElement('hidden', 'sourcemodule', 'question');
+        $mform->setType('sourcemodule', PARAM_ALPHA);
 
-        $questionsourceoptions = array();
-        if ($hasglossary) {
-            $questionsourceoptions['glossary'] = get_string('modulename', 'glossary');
-        }
-        $questionsourceoptions['question'] = get_string('sourcemodule_question', 'game');
-        if ($gamekind != 'bookquiz') {
-            $questionsourceoptions['quiz'] = get_string('modulename', 'quiz');
-        }
-        $mform->addElement('select', 'sourcemodule', get_string('sourcemodule', 'game'), $questionsourceoptions);
+        $a = $this->get_array_question_categories( $COURSE->id, $gamekind );
+        $mform->addElement('select', 'questioncategoryid', get_string('sourcemodule_questioncategory', 'game'), $a);
+        $mform->disabledIf('questioncategoryid', 'sourcemodule', 'neq', 'question');
 
-        if ($hasglossary) {
-            $a = array();
-            $sql = "SELECT id,name,globalglossary,course FROM {$CFG->prefix}glossary ".
-            "WHERE course={$COURSE->id} OR globalglossary=1 ORDER BY globalglossary DESC,name";
-            if ($recs = $DB->get_records_sql($sql)) {
-                foreach ($recs as $rec) {
-                    if (($rec->globalglossary != 0) && ($rec->course != $COURSE->id)) {
-                        $rec->name = '*'.$rec->name;
-                    }
-                    $a[$rec->id] = $rec->name;
-                }
-            }
-            $mform->addElement('select', 'glossaryid', get_string('sourcemodule_glossary', 'game'), $a);
-            $mform->disabledIf('glossaryid', 'sourcemodule', 'neq', 'glossary');
-
-            $a = $this->get_array_glossary_categories( $a);
-            $mform->addElement('select', 'glossarycategoryid', get_string('sourcemodule_glossarycategory', 'game'), $a);
-            $mform->disabledIf('glossarycategoryid', 'sourcemodule', 'neq', 'glossary');
-
-            // Only approved.
-            $mform->addElement('selectyesno', 'glossaryonlyapproved', get_string('glossary_only_approved', 'game'));
-            $mform->disabledIf('subcategories', 'sourcemodule', 'neq', 'glossary');
-        }
-
-        // Question Category - Short Answer.
-        if ($gamekind != 'bookquiz') {
-            $a = $this->get_array_question_categories( $COURSE->id, $gamekind );
-            $mform->addElement('select', 'questioncategoryid', get_string('sourcemodule_questioncategory', 'game'), $a);
-            $mform->disabledIf('questioncategoryid', 'sourcemodule', 'neq', 'question');
-
-            // Subcategories.
-            $mform->addElement('selectyesno', 'subcategories', get_string('sourcemodule_include_subcategories', 'game'));
-            $mform->disabledIf('subcategories', 'sourcemodule', 'neq', 'question');
-        }
-
-        // Quiz Category.
-        if ($gamekind != 'bookquiz') {
-            $a = array();
-            if ($recs = $DB->get_records('quiz', array( 'course' => $COURSE->id), 'id,name')) {
-                foreach ($recs as $rec) {
-                    $a[$rec->id] = $rec->name;
-                }
-            }
-            $mform->addElement('select', 'quizid', get_string('sourcemodule_quiz', 'game'), $a);
-            $mform->disabledIf('quizid', 'sourcemodule', 'neq', 'quiz');
-        }
-
-        // Book.
-        if ( $gamekind == 'bookquiz') {
-            $a = array();
-            if ($recs = $DB->get_records('book', array( 'course' => $COURSE->id), 'id,name')) {
-                foreach ($recs as $rec) {
-                    $a[$rec->id] = $rec->name;
-                }
-            }
-            $mform->addElement('select', 'bookid', get_string('sourcemodule_book', 'game'), $a);
-        }
+        // Subcategories.
+        $mform->addElement('selectyesno', 'subcategories', get_string('sourcemodule_include_subcategories', 'game'));
+        $mform->disabledIf('subcategories', 'sourcemodule', 'neq', 'question');
 
         // Common settings to all games.
         $mform->addElement('text', 'maxattempts', get_string('cross_max_attempts', 'game'));
@@ -232,17 +171,6 @@ class mod_game_mod_form extends moodleform_mod {
             $mform->addElement('selectyesno', 'param5', get_string('hangman_showquestion', 'game'));
             $mform->setDefault('param5', 1);
             $mform->addElement('selectyesno', 'param6', get_string('hangman_showcorrectanswer', 'game'));
-
-            $a = array();
-            $a = get_string_manager()->get_list_of_translations();
-            $a[''] = '----------';
-            $a['user'] = get_string('language_user_defined', 'game');
-            ksort( $a);
-            $mform->addElement('select', 'language', get_string('hangman_language', 'game'), $a);
-
-            $mform->addElement('text', 'userlanguage', get_string('language_user_defined', 'game'));
-            $mform->setType('userlanguage', PARAM_TEXT);
-            $mform->disabledIf('userlanguage', 'language', 'neq', 'user');
         }
 
         // Crossword options.
@@ -254,13 +182,20 @@ class mod_game_mod_form extends moodleform_mod {
             $mform->setType('param4', PARAM_INT);
             $mform->addElement('text', 'param2', get_string('cross_maxwords', 'game'));
             $mform->setType('param2', PARAM_INT);
-            $mform->addElement('selectyesno', 'param7', get_string('hangman_allowspaces', 'game'));
             $crosslayoutoptions = array();
             $crosslayoutoptions[0] = get_string('cross_layout0', 'game');
             $crosslayoutoptions[1] = get_string('cross_layout1', 'game');
             $mform->addElement('select', 'param3', get_string('cross_layout', 'game'), $crosslayoutoptions);
             $mform->setType('param5', PARAM_INT);
-            $mform->addElement('selectyesno', 'param6', get_string('cross_disabletransformuppercase', 'game'));
+
+            # disable text-transform
+            $mform->addElement('hidden', 'param6', 0);
+            $mform->setType('param6', PARAM_INT);
+
+            # allow white spaces
+            $mform->addElement('hidden', 'param7', 1);
+            $mform->setType('param7', PARAM_INT);
+
             $mform->addElement('text', 'param8', get_string('cross_maxcomputetime', 'game'));
             $mform->setType('param8', PARAM_INT);
         }
@@ -268,11 +203,11 @@ class mod_game_mod_form extends moodleform_mod {
         // Cryptex options.
         if ($gamekind == 'cryptex') {
             $mform->addElement('header', 'cryptex', get_string( 'cryptex_options', 'game'));
-            $mform->addElement('text', 'param1', get_string('cross_maxcols', 'game'));
+            $mform->addElement('text', 'param1', get_string('cryptex_maxcols', 'game'));
             $mform->setType('param1', PARAM_INT);
-            $mform->addElement('text', 'param4', get_string('cross_minwords', 'game'));
+            $mform->addElement('text', 'param4', get_string('cryptex_minwords', 'game'));
             $mform->setType('param4', PARAM_INT);
-            $mform->addElement('text', 'param2', get_string('cross_maxwords', 'game'));
+            $mform->addElement('text', 'param2', get_string('cryptex_maxwords', 'game'));
             $mform->setType('param2', PARAM_INT);
             $mform->addElement('selectyesno', 'param7', get_string('hangman_allowspaces', 'game'));
             $mform->addElement('text', 'param8', get_string('cryptex_maxtries', 'game'));
